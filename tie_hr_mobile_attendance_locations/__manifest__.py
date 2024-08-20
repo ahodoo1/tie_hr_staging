@@ -25,6 +25,7 @@ Long description of module's purpose
         'security/ir.model.access.csv',
         'views/tie_zone.xml',
         'views/hr_attendance.xml',
+        'views/res_config_setting.xml',
         'menus.xml'
     ],
     # only loaded in demonstration mode
