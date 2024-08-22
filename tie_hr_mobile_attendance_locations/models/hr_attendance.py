@@ -12,6 +12,7 @@ def get_google_maps_url(latitude, longitude):
 class HrAttendance(models.Model):
     _inherit = 'hr.attendance'
 
+
     location_record = fields.Boolean(string="Location Record", readonly=True, default=False, copy=False)
     check_in_latitude = fields.Float(string='Sign-in Latitude', digits=(16, 6), readonly=True, copy=False)
     check_in_longitude = fields.Float(string='Sign-in Longitude', digits=(16, 6), copy=False, readonly=True)

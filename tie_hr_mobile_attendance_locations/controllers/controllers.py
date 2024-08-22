@@ -1,7 +1,7 @@
 import datetime
 import jwt
 from jwt import ExpiredSignatureError, InvalidTokenError
-from odoo import http
+from odoo import http,fields
 from odoo.http import request, Response
 import logging
 import json
@@ -11,12 +11,15 @@ _logger = logging.getLogger(__name__)
 
 
 class AttendanceLocationController(http.Controller):
-    @http.route('/attendance/location', type='http', auth='user', csrf=False)
+    @http.route('/attendance/location', type='http', auth='none', csrf=False)
     def get_emp_attendance_location(self):
         try:
+
             # Fetch Data Payload
             data = request.httprequest.data.decode()
             vals = json.loads(data)
+            # request.session.authenticate(vals.get('db'), vals.get('login'), vals.get('password'))
+            # request.env['ir.http'].session_info()
             jwt_token = request.httprequest.headers.get('jwt_token')
             accept_language = request.httprequest.headers.get('Accept-Language')
             decoded_token = jwt.decode(jwt_token, options={"verify_signature": False})
@@ -205,7 +208,7 @@ class AttendanceLocationController(http.Controller):
             status=200
         )
 
-    @http.route('/api/auth/login', type='http', auth='none', csrf=False)
+    @http.route('/api/auth/login', type='http', auth='public', csrf=False)
     def auth_login(self):
         try:
             data = request.httprequest.data.decode()
@@ -281,3 +284,88 @@ class AttendanceLocationController(http.Controller):
                 content_type='application/json',
                 status=200
             )
+
+    @http.route('/attendance/check', type='http', auth='public', csrf=False,methods=['GET'])
+    def get_emp_attendance_check(self):
+        try:
+            # Fetch Data Payload
+            data = request.httprequest.data.decode()
+            vals = json.loads(data)
+            accept_language=False
+            accept_language = request.httprequest.headers.get('Accept-Language')
+            jwt_token = request.httprequest.headers.get('jwt_token')
+            decoded_token = jwt.decode(jwt_token, options={"verify_signature": False})
+            if "employee_id" not in decoded_token:
+                result = {
+                    'status': False,
+                    'message': 'Invalid Token' if accept_language != 'ar' else 'رمز غير صالح'
+                }
+                return Response(
+                    json.dumps(result),
+                    content_type='application/json',
+                    status=200
+                )
+            employee_id = decoded_token.get("employee_id")
+
+            attendance_env = request.env['hr.attendance'].sudo()
+            employee_tz_name = request.env['hr.employee'].sudo().browse(employee_id).tz or 'UTC'
+            employee_timezone = pytz.timezone(employee_tz_name)
+
+            today = datetime.datetime.now(tz=employee_timezone).date()
+
+            attendance_records = attendance_env.search([('employee_id.id','=',employee_id)])
+            attendance_list=[]
+            if attendance_records:
+                today_records=attendance_records.filtered(lambda x: x.check_in.date() == today)
+
+                if today_records:
+                    for record in today_records:
+                        attendance_list.append({
+                            "attendance_time": record.check_in.strftime('%H:%M:%S'),
+                            "leave_time": record.check_out.strftime('%H:%M:%S') if record.check_out else "null",
+                            })
+                    res={
+                        "status" : True,
+                        "message": "User Attendance",
+                        "attendance": attendance_list
+                        }
+                    return Response(
+                        json.dumps(res),
+                        content_type='application/json',
+                        status=200
+                    )
+                else:
+                    res={
+                        'status': False,
+                        'message': "There is no attendance for the employee today" if accept_language != 'ar' else "لا يوجد سجل حضور للموظف اليوم",
+                    }
+                    return Response(
+                        json.dumps(res),
+                        content_type='application/json',
+                        status=200
+                    )
+            else:
+                res = {
+                    'status': False,
+                    'message': "There is no attendance for the employee" if accept_language != 'ar' else "لا يوجد سجل حضور للموظف ",
+                }
+                return Response(
+                    json.dumps(res),
+                    content_type='application/json',
+                    status=200
+                )
+
+
+
+        except Exception as e:
+            # Handle exceptions
+            result = {
+                'status': False,
+                'message': str(e) if accept_language != 'ar' else "بيانات غير صالحة",
+            }
+            return Response(
+                json.dumps(result),
+                content_type='application/json',
+                status=200
+            )
+
