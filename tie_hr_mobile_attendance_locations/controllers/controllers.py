@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 
 class AttendanceLocationController(http.Controller):
-    @http.route('/attendance/location', type='http', auth='none', csrf=False)
+    @http.route('/attendance/location', type='http', auth='public', csrf=False,methods=['GET','POST'])
     def get_emp_attendance_location(self):
         try:
 
@@ -33,7 +33,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
             if not vals.get('latitude', False):
                 result = {
@@ -43,7 +43,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
             if not vals.get('longitude', False):
                 result = {
@@ -53,7 +53,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
 
             if not vals.get('attendance_time', False):
@@ -64,7 +64,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
             # Token Authorization
             if not jwt_token:
@@ -75,7 +75,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
 
             if "employee_id" not in decoded_token:
@@ -86,7 +86,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
 
             employee_id = decoded_token.get("employee_id")
@@ -107,7 +107,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
             # Retrieve employee's time zone
             employee_tz_name = emp_id.tz or 'UTC'  # Default to UTC if no time zone is set
@@ -124,7 +124,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
             # Convert attendance time from payload timezone to UTC
             attendance_time = datetime.datetime.strptime(vals.get("attendance_time"), '%Y-%m-%d %H:%M:%S')
@@ -142,7 +142,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
 
             # Convert UTC time to employee's timezone
@@ -182,7 +182,7 @@ class AttendanceLocationController(http.Controller):
         except ExpiredSignatureError:
             # If the token is expired, handle it here
             result = {
-                'status': False,
+                'status': 401,
                 'message': 'Token has expired. Please log in again.' if accept_language != 'ar' else 'انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى'
             }
             return Response(
@@ -199,7 +199,7 @@ class AttendanceLocationController(http.Controller):
             return Response(
                 json.dumps(result),
                 content_type='application/json',
-                status=200
+                status=401
             )
             # Return the successful response if everything is processed correctly
         return Response(
@@ -208,7 +208,7 @@ class AttendanceLocationController(http.Controller):
             status=200
         )
 
-    @http.route('/api/auth/login', type='http', auth='public', csrf=False)
+    @http.route('/api/auth/login', type='http', auth='public', csrf=False,methods=['POST'])
     def auth_login(self):
         try:
             data = request.httprequest.data.decode()
@@ -240,7 +240,7 @@ class AttendanceLocationController(http.Controller):
                     return Response(
                         json.dumps(result),
                         content_type='application/json',
-                        status=200
+                        status=401
                     )
 
                 image_url = '/web/image?model=res.users&id=%d&field=image_1920' % user_id.id
@@ -271,7 +271,7 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200)
+                    status=401)
 
         except Exception as e:
             # Handle exceptions
@@ -282,7 +282,7 @@ class AttendanceLocationController(http.Controller):
             return Response(
                 json.dumps(result),
                 content_type='application/json',
-                status=200
+                status=401
             )
 
     @http.route('/attendance/check', type='http', auth='public', csrf=False,methods=['GET'])
@@ -291,10 +291,33 @@ class AttendanceLocationController(http.Controller):
             # Fetch Data Payload
             data = request.httprequest.data.decode()
             vals = json.loads(data)
+
             accept_language=False
             accept_language = request.httprequest.headers.get('Accept-Language')
             jwt_token = request.httprequest.headers.get('jwt_token')
             decoded_token = jwt.decode(jwt_token, options={"verify_signature": False})
+            if not vals.get('tz', False):
+                result = {
+                    'status': False,
+                    'message': 'Timezone(tz) is required' if accept_language != 'ar' else 'المنطقة الزمنية مطلوبه'
+                }
+                return Response(
+                    json.dumps(result),
+                    content_type='application/json',
+                    status=401
+                )
+            if not vals.get('attendance_time', False):
+                result = {
+                    'status': False,
+                    'message': 'Attendance Time(attendance_time) is required' if accept_language != 'ar' else 'وقت الحضور مطلوب'
+                }
+                return Response(
+                    json.dumps(result),
+                    content_type='application/json',
+                    status=401
+                )
+            payload_tz = vals.get('tz')
+
             if "employee_id" not in decoded_token:
                 result = {
                     'status': False,
@@ -303,20 +326,38 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(result),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
             employee_id = decoded_token.get("employee_id")
 
             attendance_env = request.env['hr.attendance'].sudo()
             employee_tz_name = request.env['hr.employee'].sudo().browse(employee_id).tz or 'UTC'
-            employee_timezone = pytz.timezone(employee_tz_name)
+            try:
+                payload_timezone = pytz.timezone(payload_tz)
+                employee_timezone = pytz.timezone(employee_tz_name)
+            except pytz.UnknownTimeZoneError:
+                result = {
+                    'status': False,
+                    'message': 'Invalid Time Zone' if accept_language != 'ar' else 'منظقه زمنيه غير صالحه'
+                }
 
-            today = datetime.datetime.now(tz=employee_timezone).date()
+                return Response(
+                    json.dumps(result),
+                    content_type='application/json',
+                    status=401
+                )
+            attendance_time = datetime.datetime.strptime(vals.get("attendance_time"), '%Y-%m-%d %H:%M:%S')
+            attendance_time_localized = payload_timezone.localize(attendance_time)
+            attendance_time_utc = attendance_time_localized.astimezone(pytz.utc)
+            attendance_time_in_employee_tz = attendance_time_utc.astimezone(employee_timezone)
+
+            # Convert to naive datetime (remove timezone info) for storing in Odoo
+            naive_attendance_time = attendance_time_in_employee_tz.replace(tzinfo=None)
+            attendance_list=[]
 
             attendance_records = attendance_env.search([('employee_id.id','=',employee_id)])
-            attendance_list=[]
             if attendance_records:
-                today_records=attendance_records.filtered(lambda x: x.check_in.date() == today)
+                today_records=attendance_records.filtered(lambda x: x.check_in.date() == naive_attendance_time.date())
 
                 if today_records:
                     for record in today_records:
@@ -342,7 +383,7 @@ class AttendanceLocationController(http.Controller):
                     return Response(
                         json.dumps(res),
                         content_type='application/json',
-                        status=200
+                        status=401
                     )
             else:
                 res = {
@@ -352,10 +393,8 @@ class AttendanceLocationController(http.Controller):
                 return Response(
                     json.dumps(res),
                     content_type='application/json',
-                    status=200
+                    status=401
                 )
-
-
 
         except Exception as e:
             # Handle exceptions
@@ -366,6 +405,7 @@ class AttendanceLocationController(http.Controller):
             return Response(
                 json.dumps(result),
                 content_type='application/json',
-                status=200
+                status=401
             )
+
 
