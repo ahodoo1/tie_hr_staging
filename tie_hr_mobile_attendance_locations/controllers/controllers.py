@@ -96,7 +96,7 @@ class AttendanceLocationController(http.Controller):
             print(expiry_period_minutes)
 
             if expiry_period_minutes:
-                expiry_period_minutes = float(expiry_period_minutes)  # Ensure it's a float
+                expiry_period_minutes = int(expiry_period_minutes)
 
             emp_id = request.env["hr.employee"].sudo().search([("id", "=", employee_id)])
             if not emp_id:
@@ -131,19 +131,19 @@ class AttendanceLocationController(http.Controller):
             attendance_time_localized = payload_timezone.localize(attendance_time)
             attendance_time_utc = attendance_time_localized.astimezone(pytz.utc)
             # Calculate expiration window
-            current_time = datetime.datetime.now(pytz.utc)
-            expiration_time = attendance_time_utc + datetime.timedelta(minutes=expiry_period_minutes)
-
-            if current_time > expiration_time:
-                result = {
-                    'status': False,
-                    'message': 'Session has expired. Please log in again.' if accept_language != 'ar' else 'انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى'
-                }
-                return Response(
-                    json.dumps(result),
-                    content_type='application/json',
-                    status=401
-                )
+            # current_time = datetime.datetime.now(pytz.utc)
+            # expiration_time = attendance_time_utc + datetime.timedelta(minutes=expiry_period_minutes)
+            #
+            # if current_time > expiration_time:
+            #     result = {
+            #         'status': False,
+            #         'message': 'Session has expired. Please log in again.' if accept_language != 'ar' else 'انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى'
+            #     }
+            #     return Response(
+            #         json.dumps(result),
+            #         content_type='application/json',
+            #         status=401
+            #     )
 
             # Convert UTC time to employee's timezone
             attendance_time_in_employee_tz = attendance_time_utc.astimezone(employee_timezone)
