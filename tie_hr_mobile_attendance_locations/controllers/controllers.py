@@ -33,8 +33,6 @@ class AttendanceLocationController(http.Controller):
 
     @http.route('/web/session/authenticate', type='json', auth='none')
     def authenticate(self, db, login, password, base_location=None):
-        if not http.request.session.uid:
-            return self.get_fail_response("Session expired or invalid")
         accept_language = False
         accept_language = request.httprequest.headers.get('Accept-Language')
         if not http.db_filter([db]):
@@ -49,13 +47,10 @@ class AttendanceLocationController(http.Controller):
         hash_password = hash_password(password)
         print(hash_password)
         usr_login = request.env['res.users'].sudo().search([('login', '=', login), ('password', '=', hash_password)])
-        user_pass=usr_login.password
         if not usr_login:
             message = "Invalid username or password" if accept_language != 'ar' else 'كلمة مرور او مستخدم غير صالح'
             return self.get_fail_response(message)
-        # user = request.env['res.users'].sudo().search([('login', '=', login)])
-        # if not user or not user.check_password(password):
-        #     return self.get_fail_response("Invalid credentials")
+
         # pre_uid = request.session.authenticate(db, login, password)
         # if pre_uid != request.session.uid:
         #     return {'uid': None}
@@ -66,21 +61,21 @@ class AttendanceLocationController(http.Controller):
         #     env = odoo.api.Environment(cr, request.session.uid, request.session.context)
 
         # Custom response to return additional user details
-        user_id = request.env['res.users'].sudo().browse(request.session.uid)
+        # user_id = request.env['res.users'].sudo().browse(request.session.uid)
         token = False
-        image_url = '/web/image?model=res.users&id=%d&field=image_1920' % user_id.id
+        image_url = '/web/image?model=res.users&id=%d&field=image_1920' % usr_login.id
 
         response = {
             'status': True,
             'code': 200,
             'message': 'User login successfully' if accept_language != 'ar' else 'تم تسجيل الدخول بنجاح',
             'user': {
-                'token': user_id.api_token,
+                'token': usr_login.api_token,
                 'user_id': request.session.uid,
-                'email': user_id.login,
-                'name': user_id.name,
-                'created_at': user_id.create_date.strftime('%Y-%m-%d %H:%M:%S'),
-                'updated_at': user_id.write_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'email': usr_login.login,
+                'name': usr_login.name,
+                'created_at': usr_login.create_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': usr_login.write_date.strftime('%Y-%m-%d %H:%M:%S'),
                 'avatar': "http://localhost:8017" + image_url if image_url else None
             }
         }
