@@ -30,7 +30,6 @@ class AttendanceLocationController(http.Controller):
         }
         return result
 
-    http.route('/web/session/authenticate', type='json', auth='none')(None)
 
     @http.route('/web/session/authenticate', type='json', auth='none')
     def authenticate(self, db, login, password, base_location=None):
