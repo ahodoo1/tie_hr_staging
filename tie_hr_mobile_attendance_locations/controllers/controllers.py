@@ -41,7 +41,7 @@ class AttendanceLocationController(http.Controller):
             # raise AccessError("Database not found.")
             message = "Database not found" if accept_language != 'ar' else 'قاعدة بيانات غير متوفره'
             return self.get_fail_response(message)
-
+        #
         def hash_password(password):
             # Hash the password using the context
             return pwd_context.hash(password)
@@ -52,9 +52,12 @@ class AttendanceLocationController(http.Controller):
         if not usr_login:
             message = "Invalid username or password" if accept_language != 'ar' else 'كلمة مرور او مستخدم غير صالح'
             return self.get_fail_response(message)
-        pre_uid = request.session.authenticate(db, login, password)
-        if pre_uid != request.session.uid:
-            return {'uid': None}
+        # user = request.env['res.users'].sudo().search([('login', '=', login)])
+        # if not user or not user.check_password(password):
+        #     return self.get_fail_response("Invalid credentials")
+        # pre_uid = request.session.authenticate(db, login, password)
+        # if pre_uid != request.session.uid:
+        #     return {'uid': None}
 
         request.session.db = db
         registry = odoo.modules.registry.Registry(db)
