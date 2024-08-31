@@ -30,8 +30,12 @@ class AttendanceLocationController(http.Controller):
         }
         return result
 
+    http.route('/web/session/authenticate', type='json', auth='none')(None)
+
     @http.route('/web/session/authenticate', type='json', auth='none')
     def authenticate(self, db, login, password, base_location=None):
+        if not http.request.session.uid:
+            return self.get_fail_response("Session expired or invalid")
         accept_language = False
         accept_language = request.httprequest.headers.get('Accept-Language')
         if not http.db_filter([db]):
