@@ -47,8 +47,9 @@ class AttendanceLocationController(http.Controller):
             return pwd_context.hash(password)
 
         hash_password = hash_password(password)
+        print(hash_password)
         usr_login = request.env['res.users'].sudo().search([('login', '=', login), ('password', '=', hash_password)])
-
+        user_pass=usr_login.password
         if not usr_login:
             message = "Invalid username or password" if accept_language != 'ar' else 'كلمة مرور او مستخدم غير صالح'
             return self.get_fail_response(message)
@@ -59,40 +60,40 @@ class AttendanceLocationController(http.Controller):
         # if pre_uid != request.session.uid:
         #     return {'uid': None}
 
-        request.session.db = db
-        registry = odoo.modules.registry.Registry(db)
-        with registry.cursor() as cr:
-            env = odoo.api.Environment(cr, request.session.uid, request.session.context)
+        # request.session.db = db
+        # registry = odoo.modules.registry.Registry(db)
+        # with registry.cursor() as cr:
+        #     env = odoo.api.Environment(cr, request.session.uid, request.session.context)
 
-            # Custom response to return additional user details
-            user_id = env['res.users'].sudo().browse(request.session.uid)
-            token = False
-            image_url = '/web/image?model=res.users&id=%d&field=image_1920' % user_id.id
+        # Custom response to return additional user details
+        user_id = request.env['res.users'].sudo().browse(request.session.uid)
+        token = False
+        image_url = '/web/image?model=res.users&id=%d&field=image_1920' % user_id.id
 
-            response = {
-                'status': True,
-                'code': 200,
-                'message': 'User login successfully' if accept_language != 'ar' else 'تم تسجيل الدخول بنجاح',
-                'user': {
-                    'token': user_id.api_token,
-                    'user_id': request.session.uid,
-                    'email': user_id.login,
-                    'name': user_id.name,
-                    'created_at': user_id.create_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    'updated_at': user_id.write_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    'avatar': "http://localhost:8017" + image_url if image_url else None
-                }
+        response = {
+            'status': True,
+            'code': 200,
+            'message': 'User login successfully' if accept_language != 'ar' else 'تم تسجيل الدخول بنجاح',
+            'user': {
+                'token': user_id.api_token,
+                'user_id': request.session.uid,
+                'email': user_id.login,
+                'name': user_id.name,
+                'created_at': user_id.create_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': user_id.write_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'avatar': "http://localhost:8017" + image_url if image_url else None
             }
+        }
 
             # Update session cookie if necessary
-            if not request.db and not request.session.is_explicit:
-                http.root.session_store.rotate(request.session, env)
-                request.future_response.set_cookie(
-                    'session_id', request.session.sid,
-                    max_age=http.SESSION_LIFETIME, httponly=True
-                )
+        if not request.db and not request.session.is_explicit:
+            http.root.session_store.rotate(request.session, request.env)
+            request.future_response.set_cookie(
+                'session_id', request.session.sid,
+                max_age=http.SESSION_LIFETIME, httponly=True
+            )
 
-            return response
+        return response
 
     def _is_token_valid(self, token):
         user = request.env['res.users'].sudo().search([('api_token', '=', token)], limit=1)
