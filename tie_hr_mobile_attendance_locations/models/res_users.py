@@ -10,6 +10,13 @@ class ResUsers(models.Model):
 
     api_token = fields.Char(string='API Token', readonly=True)
 
+    @api.model
+    def create(self, vals):
+        # Generate API token on user creation
+        vals['api_token'] = secrets.token_hex(16)
+        return super(ResUsers, self).create(vals)
+
+
     @classmethod
     def authenticate(cls, db, login, password, user_agent_env):
         """Override to assign api_token upon successful login."""

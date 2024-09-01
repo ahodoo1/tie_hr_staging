@@ -1,26 +1,37 @@
 import datetime
-import jwt
 from jwt import ExpiredSignatureError, InvalidTokenError
-import requests
 from odoo.http import request, Response
-from urllib.parse import parse_qs
-import odoo
-import json
 import pytz
-
 from odoo import http
-from odoo.exceptions import AccessError
 from passlib.context import CryptContext
+from odoo.addons import base
+from odoo.addons.web.controllers.main import Session
+base.models.res_users.USER_PRIVATE_FIELDS.append('oauth_access_token')
+MIN_ROUNDS = 600_000
 
 # Odoo's context for hashing and verifying passwords
-pwd_context = CryptContext(schemes=["pbkdf2_sha512"], deprecated="auto")
+
+class CustomSession(Session):
+
+    @http.route('/web/session/authenticate', type='json', auth='none', csrf=False)
+    def authenticate(self, db, login, password, base_location=None):
+        token = request.jsonrequest.get('token')
+        if token:
+            user = request.env['res.users'].sudo().search([('api_token', '=', token)], limit=1)
+            if user:
+                request.session.uid = user.id
+                return {
+                    'uid': user.id,
+                    'token': user.api_token,
+                    # Additional user data can be returned here
+                }
+            else:
+                return {'uid': None, 'error': 'Invalid token'}
+        else:
+            return super(CustomSession, self).authenticate(db, login, password, base_location)
 
 
 class AttendanceLocationController(http.Controller):
-
-    def verify_password(plain_password, hashed_password):
-        # Verify the plain password against the stored hashed password
-        return pwd_context.verify(plain_password, hashed_password)
 
     def get_fail_response(self, message):
         result = {
@@ -30,27 +41,77 @@ class AttendanceLocationController(http.Controller):
         }
         return result
 
+    # @http.route('/web/session/authenticate', type='json', auth="none")
+    # def authenticate(self, db, login, password, base_location=None):
+    #     if not http.db_filter([db]):
+    #         raise AccessError("Database not found.")
+    #     pre_uid = request.session.authenticate(db, login, password)
+    #     if pre_uid != request.session.uid:
+    #         # Crapy workaround for unupdatable Odoo Mobile App iOS (Thanks Apple :@) and Android
+    #         # Correct behavior should be to raise AccessError("Renewing an expired session for user that has multi-factor-authentication is not supported. Please use /web/login instead.")
+    #         return {'uid': None}
+    #
+    #     request.session.db = db
+    #     registry = odoo.modules.registry.Registry(db)
+    #     with registry.cursor() as cr:
+    #         env = odoo.api.Environment(cr, request.session.uid, request.session.context)
+    #         if not request.db and not request.session.is_explicit:
+    #             # request._save_session would not update the session_token
+    #             # as it lacks an environment, rotating the session myself
+    #             http.root.session_store.rotate(request.session, env)
+    #             request.future_response.set_cookie(
+    #                 'session_id', request.session.sid,
+    #                 max_age=http.SESSION_LIFETIME, httponly=True
+    #             )
+    #                 # Update session cookie if necessary
+    #     if not request.db and not request.session.is_explicit:
+    #         http.root.session_store.rotate(request.session, request.env)
+    #         request.future_response.set_cookie(
+    #             'session_id', request.session.sid,
+    #             max_age=http.SESSION_LIFETIME, httponly=True
+    #         )
+    #
+    #
+    #         return env['ir.http'].session_info()
 
-    @http.route('/web/session/authenticate', type='json', auth='none')
-    def authenticate(self, db, login, password, base_location=None):
+
+    @http.route('/api/auth/token', type='json', auth='none', methods=['POST'], csrf=False)
+    def authenticate_with_token(self, db, login, password, base_location=None):
+
+
         accept_language = False
         accept_language = request.httprequest.headers.get('Accept-Language')
         if not http.db_filter([db]):
             # raise AccessError("Database not found.")
             message = "Database not found" if accept_language != 'ar' else 'قاعدة بيانات غير متوفره'
             return self.get_fail_response(message)
-        #
-        def hash_password(password):
-            # Hash the password using the context
-            return pwd_context.hash(password)
 
-        hash_password = hash_password(password)
-        print(hash_password)
-        usr_login = request.env['res.users'].sudo().search([('login', '=', login), ('password', '=', hash_password)])
-        if not usr_login:
+        usr_login = request.env['res.users'].sudo().search([('login', '=', login)],limit=1)
+        assert password
+        request.env.cr.execute(
+            "SELECT COALESCE(password, '') FROM res_users WHERE id=%s",
+            [usr_login.id]
+        )
+
+        hashed = request.env.cr.fetchone()[0]
+
+        # Initialize password context similar to Odoo's configuration
+        cfg = request.env['ir.config_parameter'].sudo()
+        pwd_context = CryptContext(
+            schemes=["pbkdf2_sha512", "plaintext"],
+            deprecated="auto",
+            pbkdf2_sha512__rounds=max(10000, int(cfg.get_param('password.hashing.rounds', 10000))),
+        )
+
+        # Verify the password against the stored hash
+        if not pwd_context.verify(password, hashed):
             message = "Invalid username or password" if accept_language != 'ar' else 'كلمة مرور او مستخدم غير صالح'
             return self.get_fail_response(message)
 
+
+        # user = request.env['res.users'].sudo().search([('login', '=', login)])
+        # if not user or not user.check_password(password):
+        #     return self.get_fail_response("Invalid credentials")
         # pre_uid = request.session.authenticate(db, login, password)
         # if pre_uid != request.session.uid:
         #     return {'uid': None}
@@ -61,21 +122,21 @@ class AttendanceLocationController(http.Controller):
         #     env = odoo.api.Environment(cr, request.session.uid, request.session.context)
 
         # Custom response to return additional user details
-        # user_id = request.env['res.users'].sudo().browse(request.session.uid)
+        user_id = request.env['res.users'].sudo().browse(usr_login.id)
         token = False
-        image_url = '/web/image?model=res.users&id=%d&field=image_1920' % usr_login.id
+        image_url = '/web/image?model=res.users&id=%d&field=image_1920' % user_id.id
 
         response = {
             'status': True,
             'code': 200,
             'message': 'User login successfully' if accept_language != 'ar' else 'تم تسجيل الدخول بنجاح',
             'user': {
-                'token': usr_login.api_token,
+                'token': user_id.api_token,
                 'user_id': request.session.uid,
-                'email': usr_login.login,
-                'name': usr_login.name,
-                'created_at': usr_login.create_date.strftime('%Y-%m-%d %H:%M:%S'),
-                'updated_at': usr_login.write_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'email': user_id.login,
+                'name': user_id.name,
+                'created_at': user_id.create_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': user_id.write_date.strftime('%Y-%m-%d %H:%M:%S'),
                 'avatar': "http://localhost:8017" + image_url if image_url else None
             }
         }
