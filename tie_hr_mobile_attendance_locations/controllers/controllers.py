@@ -85,15 +85,19 @@ class AttendanceLocationController(http.Controller):
             # raise AccessError("Database not found.")
             message = "Database not found" if accept_language != 'ar' else 'قاعدة بيانات غير متوفره'
             return self.get_fail_response(message)
-
+        hashed=False
         usr_login = request.env['res.users'].sudo().search([('login', '=', login)],limit=1)
-        assert password
-        request.env.cr.execute(
-            "SELECT COALESCE(password, '') FROM res_users WHERE id=%s",
-            [usr_login.id]
-        )
+        if not usr_login:
+            message = "Invalid username or password" if accept_language != 'ar' else "'كلمة مرور او مستخدم غير صالح"
+            return self.get_fail_response(message)
+        if usr_login:
+            assert password
+            request.env.cr.execute(
+                "SELECT COALESCE(password, '') FROM res_users WHERE id=%s",
+                [usr_login.id]
+            )
 
-        hashed = request.env.cr.fetchone()[0]
+            hashed = request.env.cr.fetchone()[0]
 
         # Initialize password context similar to Odoo's configuration
         cfg = request.env['ir.config_parameter'].sudo()
