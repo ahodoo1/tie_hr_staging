@@ -141,7 +141,7 @@ class AttendanceLocationController(http.Controller):
                 'name': user_id.name,
                 'created_at': user_id.create_date.strftime('%Y-%m-%d %H:%M:%S'),
                 'updated_at': user_id.write_date.strftime('%Y-%m-%d %H:%M:%S'),
-                'avatar': "http://localhost:8017" + image_url if image_url else None
+                'avatar': "http://161.35.158.202:8017" + image_url if image_url else None
             }
         }
 
